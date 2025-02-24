@@ -3,17 +3,32 @@ import subprocess
 import argparse
 from collections import defaultdict
 
-def get_repo_dir(repo_url):
-    """Retrieve or clone the repository to a local cache directory."""
+def get_repo_dir(repo_url, branch=None):
+    """Retrieve or clone the repository to a local cache directory.
+    
+    Args:
+        repo_url: URL of the repository to clone
+        branch: Optional branch name to checkout
+    """
     repo_name = repo_url.split('/')[-1].replace('.git', '')
     cache_dir = './repo_cache'
     os.makedirs(cache_dir, exist_ok=True)
     repo_path = os.path.join(cache_dir, repo_name)
+    
     if not os.path.exists(repo_path):
         print(f"Cloning repository {repo_url} to {repo_path}")
-        subprocess.run(['git', 'clone', repo_url, repo_path], check=True)
+        clone_cmd = ['git', 'clone', repo_url, repo_path]
+        if branch:
+            clone_cmd.extend(['--branch', branch])
+        subprocess.run(clone_cmd, check=True)
     else:
         print(f"Using existing repository at {repo_path}")
+        if branch:
+            print(f"Checking out branch: {branch}")
+            subprocess.run(['git', '-C', repo_path, 'fetch'], check=True)
+            subprocess.run(['git', '-C', repo_path, 'checkout', branch], check=True)
+            subprocess.run(['git', '-C', repo_path, 'pull'], check=True)
+    
     return repo_path
 
 def search_word_in_repo(repo_path, word, allowed_extensions=None, ignore_case=False):
@@ -94,9 +109,10 @@ def main():
     parser.add_argument('--extensions', '-e', help='Comma-separated list of extensions (e.g., .py,.txt)')
     parser.add_argument('--output', '-o', default='output.txt', help='Output file (default: output.txt)')
     parser.add_argument('--ignore-case', '-i', action='store_true', help='Case-insensitive search')
+    parser.add_argument('--branch', '-b', help='Specific branch to explore')
     args = parser.parse_args()
 
-    repo_path = get_repo_dir(args.repo_url)
+    repo_path = get_repo_dir(args.repo_url, args.branch)
     allowed_extensions = [ext.lower() for ext in args.extensions.split(',')] if args.extensions else None
     collected_files = search_word_in_repo(repo_path, args.word, allowed_extensions, args.ignore_case)
     write_output(collected_files, args.output)
